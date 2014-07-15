@@ -40,3 +40,4 @@ libotr.pc
 /toolkit/otr_sesskeys
 
 /tests/unit/test_auth
+/tests/unit/test_proto
