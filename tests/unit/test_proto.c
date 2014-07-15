@@ -19,7 +19,7 @@
 #include <proto.h>
 #include <limits.h>
 
-#define NUM_TESTS 42
+#define NUM_TESTS 45
 
 static void test_otrl_proto_whitespace_bestversion(void)
 {
@@ -229,6 +229,45 @@ static void test_otrl_proto_message_version(void)
 	ok(ret == 0, "Protocol message version is unknown");
 }
 
+static void test_otrl_proto_instance(void)
+{
+	/* Canary that shouldn't get modified on error. */
+	unsigned int inst_from = 42, inst_to = 42;
+	gcry_error_t ret;
+
+	/*
+	 * Instance tags only supported in protocol v3 (AAM in b64).  The msg type
+	 * here is "A" which does not represent a valid one but we don't care
+	 * followed by the Sender Instance set to 1 and Receiver Instance set to 2.
+	 */
+	const char *test1 = "?OTR:AAMAAAAAAQAAAAI==";
+	ret = otrl_proto_instance(test1, &inst_from, &inst_to);
+	ok(ret == gcry_error(GPG_ERR_NO_ERROR)
+		&& inst_from == 1
+		&& inst_to == 2,
+		"Proto instance find for v3");
+
+	/* Reset canary. */
+	inst_from = inst_to = 42;
+
+	/* Len is not enough here. */
+	const char *test2 = "?OTR:AAMAAA=";
+	ret = otrl_proto_instance(test2, &inst_from, &inst_to);
+	ok(ret == gcry_error(GPG_ERR_INV_VALUE)
+		&& inst_from == 42
+		&& inst_to == 42, "Proto instance failed for v3");
+
+	/* Reset canary. */
+	inst_from = inst_to = 42;
+
+	/* Message from protocol v2. */
+	const char *test3 = "?OTR:AAIAAAAAAQAAAAI==";
+	ret = otrl_proto_instance(test3, &inst_from, &inst_to);
+	ok(ret == gcry_error(GPG_ERR_INV_VALUE)
+			&& inst_from == 42
+			&& inst_to == 42, "Proto instance failed for v2");
+}
+
 int main(int argc, char **argv)
 {
 	plan_tests(NUM_TESTS);
@@ -239,6 +278,7 @@ int main(int argc, char **argv)
 	test_otrl_proto_whitespace_bestversion();
 	test_otrl_proto_message_type();
 	test_otrl_proto_message_version();
+	test_otrl_proto_instance();
 
 	return 0;
 }
