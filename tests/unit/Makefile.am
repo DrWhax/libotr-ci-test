@@ -16,4 +16,4 @@ test_proto_SOURCES = test_proto.c
 test_proto_LDADD = $(LIBTAP) $(LIBOTR)
 
 test_dh_SOURCES = test_dh.c
-test_dh_LDADD = $(LIBTAP) $(LIBOTR)
+test_dh_LDADD = $(LIBTAP) $(LIBOTR) @LIBGCRYPT_LIBS@
