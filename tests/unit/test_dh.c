@@ -19,7 +19,7 @@
 #include <gcrypt.h>
 #include <dh.h>
 
-#define NUM_TESTS 17
+#define NUM_TESTS 28
 
 /*
  * The re-implementation/inclusion of crypto stuff is
@@ -69,6 +69,129 @@ static void test_otrl_dh_keypair_free(void)
 	ok(kp.pub == NULL && kp.priv == NULL && kp.groupid == DH1536_GROUP_ID,
 			"DH_keypair free'd with success");
 
+}
+
+static void invert_DH_keypair(DH_keypair* kp1, DH_keypair* kp2)
+{
+
+	DH_keypair tmp;
+	otrl_dh_keypair_copy(&tmp, kp1);
+	otrl_dh_keypair_copy(kp1, kp2);
+	otrl_dh_keypair_copy(kp2, &tmp);
+	otrl_dh_keypair_free(&tmp);
+}
+
+/*
+ * This is an helper function. See the next one.
+ */
+static void _test_ortl_dh_session(const DH_keypair* kp, gcry_mpi_t y)
+{
+    unsigned char *gabdata;
+    unsigned char *hashdata;
+	unsigned char encrypt[32] = {0};
+	unsigned char expected_encrypt[32] = {0};
+    unsigned char sendbyte, rcvbyte;
+	const char test_vector[] = "This is a test vector";
+	DH_sesskeys sess;
+	DH_sesskeys sess_expected;
+    gcry_mpi_t gab;
+    size_t gablen;
+    otrl_dh_session_blank(&sess);
+	otrl_dh_session(&sess, kp, y);
+
+    gab = gcry_mpi_snew(DH1536_MOD_LEN_BITS);
+    gcry_mpi_powm(gab, y, kp->priv, DH1536_MODULUS);
+
+    gcry_mpi_print(GCRYMPI_FMT_USG, NULL, 0, &gablen, gab);
+    gabdata = gcry_malloc_secure(gablen + 5);
+    gabdata[1] = (gablen >> 24) & 0xff;
+    gabdata[2] = (gablen >> 16) & 0xff;
+    gabdata[3] = (gablen >> 8) & 0xff;
+    gabdata[4] = gablen & 0xff;
+    gcry_mpi_print(GCRYMPI_FMT_USG, gabdata+5, gablen, NULL, gab);
+    gcry_mpi_release(gab);
+
+    hashdata = gcry_malloc_secure(20);
+
+	if ( gcry_mpi_cmp(kp->pub, y) > 0 ) {
+		sendbyte = 0x01;
+		rcvbyte = 0x02;
+	} else {
+		sendbyte = 0x02;
+		rcvbyte = 0x01;
+	}
+
+    gabdata[0] = sendbyte;
+    gcry_md_hash_buffer(GCRY_MD_SHA1, hashdata, gabdata, gablen+5);
+    gcry_cipher_open(&(sess_expected.sendenc), GCRY_CIPHER_AES, GCRY_CIPHER_MODE_CTR, GCRY_CIPHER_SECURE);
+    gcry_cipher_setkey(sess_expected.sendenc, hashdata, 16);
+	gcry_cipher_encrypt(sess_expected.sendenc, expected_encrypt, sizeof(expected_encrypt), test_vector, strlen(test_vector));
+	gcry_cipher_encrypt(sess.sendenc, encrypt, sizeof(encrypt), test_vector, strlen(test_vector));
+	ok(memcmp(encrypt, expected_encrypt, sizeof(encrypt)) == 0, "sendenc ok");
+
+    gcry_md_hash_buffer(GCRY_MD_SHA1, sess_expected.sendmackey, hashdata, 16);
+    gcry_md_open(&(sess_expected.sendmac), GCRY_MD_SHA1, GCRY_MD_FLAG_HMAC);
+    gcry_md_setkey(sess_expected.sendmac, sess_expected.sendmackey, 20);
+	gcry_md_write(sess_expected.sendmac, test_vector, sizeof(test_vector));
+	gcry_md_write(sess.sendmac, test_vector, sizeof(test_vector));
+	ok(memcmp(gcry_md_read(sess_expected.sendmac, 0), gcry_md_read(sess.sendmac, 0), 32) == 0, "sendmac ok");
+
+    gabdata[0] = rcvbyte;
+    gcry_md_hash_buffer(GCRY_MD_SHA1, hashdata, gabdata, gablen+5);
+    gcry_cipher_open(&(sess_expected.rcvenc), GCRY_CIPHER_AES, GCRY_CIPHER_MODE_CTR, GCRY_CIPHER_SECURE);
+    gcry_cipher_setkey(sess_expected.rcvenc, hashdata, 16);
+	gcry_cipher_encrypt(sess_expected.rcvenc, expected_encrypt, sizeof(expected_encrypt), test_vector, strlen(test_vector));
+	gcry_cipher_encrypt(sess.rcvenc, encrypt, sizeof(encrypt), test_vector, strlen(test_vector));
+	ok(memcmp(encrypt, expected_encrypt, sizeof(encrypt)) == 0, "sendenc ok");
+
+    gcry_md_hash_buffer(GCRY_MD_SHA1, sess_expected.rcvmackey, hashdata, 16);
+    gcry_md_open(&(sess_expected.rcvmac), GCRY_MD_SHA1, GCRY_MD_FLAG_HMAC);
+    gcry_md_setkey(sess_expected.rcvmac, sess_expected.rcvmackey, 20);
+	gcry_md_write(sess_expected.rcvmac, test_vector, sizeof(test_vector));
+	gcry_md_write(sess.rcvmac, test_vector, sizeof(test_vector));
+	ok(memcmp(gcry_md_read(sess_expected.sendmac, 0), gcry_md_read(sess.sendmac, 0), 32) == 0, "rcvmac ok");
+
+    gabdata[0] = 0xff;
+    gcry_md_hash_buffer(GCRY_MD_SHA256, sess_expected.extrakey, gabdata, gablen+5);
+	ok(memcmp(sess_expected.extrakey, sess.extrakey, 32) == 0, "extrakey set");
+
+    gcry_free(gabdata);
+    gcry_free(hashdata);
+}
+
+/*
+ * This function is a little bit tricky, since it uses
+ * an array of 3 DH_keypair. The first one has a smaller
+ * pubkey than the second, which has a smaller pubkey than
+ * the third one.
+ *
+ * The second key is used as "main" key. The two other ones
+ * are used to test the otrl_dh_session, with a biggest and
+ * a smallest key than the "main" one.
+ */
+static void test_otrl_dh_session(void)
+{
+	DH_keypair kp[3]; // kp[0] < kp[1] < kp[2]
+	int i;
+	DH_sesskeys sess;
+
+	for(i=0; i<3; i++)
+		otrl_dh_gen_keypair(DH1536_GROUP_ID, &(kp[i]));
+
+	// Sort the array
+	for(i=0; i<2; i++)
+		if(gcry_mpi_cmp(kp[i].pub, kp[i+1].pub) > 0)
+			invert_DH_keypair(kp + i, kp + i + 1);
+	if(gcry_mpi_cmp(kp[0].pub, kp[1].pub) > 0)
+			invert_DH_keypair(kp, kp + 1);
+
+	kp[1].groupid++;
+	ok(otrl_dh_session(&sess, &(kp[1]), kp[0].pub) == gcry_error(GPG_ERR_INV_VALUE),
+			"Invalid group detected");
+	kp[1].groupid--;
+
+	_test_ortl_dh_session(&(kp[1]), kp[0].pub);
+	_test_ortl_dh_session(&(kp[1]), kp[2].pub);
 }
 
 static void test_otrl_dh_compute_v2_auth_keys(void)
@@ -210,5 +333,7 @@ int main(int argc, char **argv)
 	test_otrl_dh_gen_keypair();
 	test_otrl_dh_keypair_free();
 	test_otrl_dh_compute_v2_auth_keys();
+	test_otrl_dh_session();
+
 	return 0;
 }
