@@ -42,3 +42,4 @@ libotr.pc
 /tests/unit/test_auth
 /tests/unit/test_proto
 /tests/unit/test_dh
+/tests/unit/test_b64

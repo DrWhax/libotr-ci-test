@@ -1,3 +1,4 @@
 unit/test_auth
 unit/test_proto
 unit/test_dh
+unit/test_b64
