@@ -180,4 +180,7 @@ int otrl_context_forget(ConnContext *context);
 /* Forget all the contexts in a given OtrlUserState. */
 void otrl_context_forget_all(OtrlUserState us);
 
+/* Find requested recent instance */
+ConnContext * otrl_context_find_recent_instance(ConnContext * context,
+	otrl_instag_t recent_instag);
 #endif
