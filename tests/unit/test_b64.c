@@ -21,7 +21,7 @@
 #include <b64.h>
 #include <tap/tap.h>
 
-#define NUM_TESTS 7
+#define NUM_TESTS 8
 
 const char *alphanum_encoded =
 	"?OTR:" "YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY3ODkwCg==" ".";
