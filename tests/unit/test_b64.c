@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2014 - Julien Voisin <julien.voisin@dustri.org>
+ *                      David Goulet <dgoulet@ev0ke.net>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License, version 2 only, as
@@ -21,7 +22,7 @@
 #include <b64.h>
 #include <tap/tap.h>
 
-#define NUM_TESTS 8
+#define NUM_TESTS 10
 
 const char *alphanum_encoded =
 	"?OTR:" "YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY3ODkwCg==" ".";
@@ -30,8 +31,32 @@ const char *alphanum_decoded =
 
 static void test_otrl_base64_otr_decode(void)
 {
+	int ret;
 	unsigned char *bufp = NULL;
 	size_t len = 0;
+
+	/*
+	 * Invalid decoding.
+	 */
+
+	ok(otrl_base64_otr_decode("hello", NULL, NULL) == -2,
+			"Call with no prefix returned an error");
+	ok(otrl_base64_otr_decode("?OTR:" "MTIzNAo=", NULL, NULL) == -2,
+			"Call with no suffix returned an error");
+	/* Message of size 0. */
+	ret = otrl_base64_otr_decode("", &bufp, &len);
+	ok(ret == -2 && bufp == NULL && len == 0,
+			"Decode b64 with message of len 0");
+	/*
+	 * Valid decoding.
+	 */
+
+	/* Invalid chars are ignored */
+	ok(otrl_base64_otr_decode("?OTR:invalid_base64_thing.", &bufp, &len) == 0
+			&& len == 12, "Invalid b64 data");
+	free(bufp);
+	bufp = NULL;
+	len = 0;
 
 	ok(otrl_base64_otr_decode(alphanum_encoded, &bufp, &len) == 0,
 			"Call with valid data successfull");
@@ -39,16 +64,16 @@ static void test_otrl_base64_otr_decode(void)
 			&& len == 37, "Decoded valid b64 test vector with success");
 	free(bufp);
 	bufp = NULL;
+	len = 0;
 
-	ok(otrl_base64_otr_decode("hello", NULL, NULL) == -2,
-			"Call with not prefix returned an error");
-	ok(otrl_base64_otr_decode("?OTR:" "MTIzNAo=", NULL, NULL) == -2,
-			"Call with not suffix returned an error");
-	/* Invalid chars are ignored */
-	ok(otrl_base64_otr_decode("?OTR:invalid_base64_thing.", &bufp, &len) == 0
-			&& len == 12,
-			"Invalid b64 data");
+	/* Invalid base64 char. */
+	ret = otrl_base64_otr_decode("?OTR:_*&?!!*\"().", &bufp, &len);
+	ok(ret == 0 && bufp != NULL && len == 0,
+			"Decode b64 with invalid b64 characters");
 	free(bufp);
+	bufp = NULL;
+	len = 0;
+
 }
 
 static void test_otrl_base64_otr_encode(void)
