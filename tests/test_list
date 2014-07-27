@@ -4,3 +4,4 @@ unit/test_dh
 unit/test_b64
 unit/test_context
 unit/test_userstate
+unit/test_tlv
