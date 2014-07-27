@@ -8,7 +8,8 @@ LIBTAP=$(top_builddir)/tests/utils/tap/libtap.la
 LIBOTR=$(top_builddir)/src/libotr.la
 
 noinst_PROGRAMS = test_auth test_proto test_dh \
-				  test_b64 test_context
+				  test_b64 test_context \
+				  test_userstate
 
 test_auth_SOURCES = test_auth.c
 test_auth_LDADD = $(LIBTAP) $(LIBOTR)
@@ -24,3 +25,6 @@ test_b64_LDADD = $(LIBTAP) $(LIBOTR)
 
 test_context_SOURCES = test_context.c
 test_context_LDADD = $(LIBTAP) $(LIBOTR)
+
+test_userstate_SOURCES = test_userstate.c
+test_userstate_LDADD = $(LIBTAP) $(LIBOTR)

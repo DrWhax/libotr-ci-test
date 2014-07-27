@@ -44,3 +44,5 @@ libotr.pc
 /tests/unit/test_dh
 /tests/unit/test_b64
 /tests/unit/test_context
+/tests/unit/test_userstate
+/tests/unit/test_tlv
