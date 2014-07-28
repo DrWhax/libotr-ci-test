@@ -19,7 +19,7 @@
 #include <tap/tap.h>
 #include <context.h>
 
-#define NUM_TESTS 15
+#define NUM_TESTS 22
 
 static void test_otrl_context_find_fingerprint(void)
 {
@@ -143,8 +143,51 @@ static void test_otrl_context_find_recent_secure_instance(void)
 	context2->msgstate = OTRL_MSGSTATE_PLAINTEXT;
 	tmp = otrl_context_find_recent_secure_instance(context1);
 	ok(tmp == context1, "Most secure context found");
+
+	free_context(context1);
+	free_context(context2);
 }
 
+static void test_otrl_context_is_fingerprint_trusted()
+{
+	Fingerprint fprint;
+	fprint.trust = NULL;
+
+	ok(otrl_context_is_fingerprint_trusted(NULL) == 0,
+			"NULL fingerprint detected");
+	ok(otrl_context_is_fingerprint_trusted(&fprint) == 0,
+			"NULL trust detected");
+	fprint.trust = "1234";
+	ok(otrl_context_is_fingerprint_trusted(&fprint) != 0,
+			"Trusted fingerprint detected");
+}
+
+static void test_otrl_context_update_recent_child()
+{
+	ConnContext context1, context2;
+	context1.m_context = &context1;
+	context2.m_context = &context1;
+
+	otrl_context_update_recent_child(&context1, 0);
+	ok(context1.recent_rcvd_child == &context1 &&
+			context1.recent_child == &context1,
+			"Recent self rcvd set");
+
+	otrl_context_update_recent_child(&context1, 1);
+	ok(context1.recent_sent_child == &context1 &&
+			context1.recent_child == &context1,
+			"Recent self sent set");
+
+	otrl_context_update_recent_child(&context2, 0);
+	ok(context1.recent_rcvd_child == &context2 && 
+			context1.recent_child == &context2,
+			"Recent rcvd set");
+
+	otrl_context_update_recent_child(&context2, 1);
+	ok(context1.recent_sent_child == &context2 && 
+			context1.recent_child == &context2,
+			"Recent sent set");
+}
 
 static void test_otrl_context_set_trust(void)
 {
@@ -185,6 +228,8 @@ int main(int argc, char **argv)
 	test_otrl_context_find_recent_instance();
 	test_otrl_context_find_fingerprint();
 	test_otrl_context_find_recent_secure_instance();
+	test_otrl_context_is_fingerprint_trusted();
+	test_otrl_context_update_recent_child();
 
 	return 0;
 }
