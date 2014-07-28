@@ -19,11 +19,10 @@
 #include <tap/tap.h>
 #include <context.h>
 
-#define NUM_TESTS 7
+#define NUM_TESTS 15
 
 static void test_otrl_context_find_fingerprint(void)
 {
-	//ConnContext context;
 	unsigned char fingerprint[20] = {0};
 	int add_if_missing = 0, addedp = 0;
 
@@ -35,11 +34,13 @@ static ConnContext* new_context(const char* user,
 		const char* account, const char* protocol)
 {
 	ConnContext* context;
-	context = malloc(sizeof(ConnContext));
+	context = calloc(1, sizeof(ConnContext));
 	context->username = strdup(user);
 	context->accountname = strdup(account);
 	context->protocol = strdup(protocol);
 	context->m_context = context;
+	context->active_fingerprint = calloc(1, sizeof(Fingerprint));
+	context->context_priv = calloc(1, sizeof(ConnContextPriv));
 
 	return context;
 }
@@ -91,6 +92,60 @@ static void test_otrl_context_find_recent_instance()
 	free_context(context_sent);
 }
 
+static void test_otrl_context_find_recent_secure_instance(void)
+{
+	ConnContext* context1 = new_context("1", "1", "1");
+	ConnContext* context2 = new_context("2", "2", "2");
+	ConnContext* tmp;
+
+	ok(otrl_context_find_recent_secure_instance(NULL) == NULL, "NULL detected");
+
+	context1->next = context2;
+	context2->next = NULL;
+	context2->m_context = context1;
+
+	context1->msgstate = OTRL_MSGSTATE_PLAINTEXT;
+	context2->msgstate = OTRL_MSGSTATE_PLAINTEXT;
+	tmp = otrl_context_find_recent_secure_instance(context1);
+	ok(tmp == context2, "Same msgstate");
+
+	context1->msgstate = OTRL_MSGSTATE_PLAINTEXT;
+	context2->msgstate = OTRL_MSGSTATE_FINISHED;
+	tmp = otrl_context_find_recent_secure_instance(context1);
+	ok(tmp == context2, "plaintext then finished");
+
+	context1->msgstate = OTRL_MSGSTATE_PLAINTEXT;
+	context2->msgstate = OTRL_MSGSTATE_ENCRYPTED;
+	tmp = otrl_context_find_recent_secure_instance(context1);
+	ok(tmp == context2, "Most secure context found");
+
+	context1->msgstate = OTRL_MSGSTATE_ENCRYPTED;
+	context2->msgstate = OTRL_MSGSTATE_ENCRYPTED;
+	tmp = otrl_context_find_recent_secure_instance(context1);
+	ok(tmp == context2, "Most secure context found");
+
+	context1->msgstate = OTRL_MSGSTATE_PLAINTEXT;
+	context2->msgstate = OTRL_MSGSTATE_PLAINTEXT;
+	context2->active_fingerprint->trust = strdup("hello");
+	tmp = otrl_context_find_recent_secure_instance(context1);
+	ok(tmp == context2, "Most secure context found");
+	free(context2->active_fingerprint);
+	context2->active_fingerprint = NULL;
+
+	context1->msgstate = OTRL_MSGSTATE_PLAINTEXT;
+	context2->msgstate = OTRL_MSGSTATE_PLAINTEXT;
+	context2->context_priv->lastrecv = 1;
+	tmp = otrl_context_find_recent_secure_instance(context1);
+	ok(tmp == context2, "Most secure context found");
+
+	context1->msgstate = OTRL_MSGSTATE_PLAINTEXT;
+	context1->context_priv->lastrecv = 2;
+	context2->msgstate = OTRL_MSGSTATE_PLAINTEXT;
+	tmp = otrl_context_find_recent_secure_instance(context1);
+	ok(tmp == context1, "Most secure context found");
+}
+
+
 static void test_otrl_context_set_trust(void)
 {
 	Fingerprint fprint;
@@ -129,6 +184,7 @@ int main(int argc, char **argv)
 	test_otrl_context_set_trust();
 	test_otrl_context_find_recent_instance();
 	test_otrl_context_find_fingerprint();
+	test_otrl_context_find_recent_secure_instance();
 
 	return 0;
 }

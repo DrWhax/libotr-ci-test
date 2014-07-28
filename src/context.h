@@ -183,4 +183,9 @@ void otrl_context_forget_all(OtrlUserState us);
 /* Find requested recent instance */
 ConnContext * otrl_context_find_recent_instance(ConnContext * context,
 	otrl_instag_t recent_instag);
+
+/* Find the instance of this context that has the best security level,
+   and for which we have most recently received a message from. Note that most
+   recent in this case is limited to a one-second resolution. */
+ConnContext * otrl_context_find_recent_secure_instance(ConnContext * context);
 #endif
