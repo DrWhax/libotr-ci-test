@@ -1,4 +1,4 @@
-SUBDIRS = utils unit
+SUBDIRS = utils unit regression
 
 AM_CFLAGS = -I$(top_srcdir)/include -I$(top_srcdir)/src -I$(top_srcdir)/tests/utils/ -I$(srcdir)
 
