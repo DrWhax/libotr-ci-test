@@ -18,8 +18,9 @@
 #include <tap/tap.h>
 #include <gcrypt.h>
 #include <dh.h>
+#include <utils.h>
 
-#define NUM_TESTS 28
+#define NUM_TESTS 38
 
 /*
  * The re-implementation/inclusion of crypto stuff is
@@ -41,6 +42,103 @@ static const int DH1536_MOD_LEN_BITS = 1536;
 static gcry_mpi_t DH1536_MODULUS = NULL;
 static gcry_mpi_t DH1536_MODULUS_MINUS_2 = NULL;
 static gcry_mpi_t DH1536_GENERATOR = NULL;
+
+static void test_otrl_dh_keypair_init(void)
+{
+	DH_keypair kp;
+
+	otrl_dh_keypair_init(&kp);
+
+	ok(kp.groupid == 0 &&
+			kp.priv == NULL &&
+			kp.pub == NULL,
+			"Keypair initialized");
+}
+
+static void test_otrl_dh_keypair_copy(void)
+{
+	DH_keypair k1, k2;
+	unsigned char* buf;
+
+	k1.groupid = rand();
+	
+	buf = gcry_random_bytes(32, GCRY_WEAK_RANDOM);
+	gcry_mpi_scan(&(k1.priv), GCRYMPI_FMT_USG, buf, 32, NULL);
+	gcry_free(buf);
+
+	buf = gcry_random_bytes(32, GCRY_WEAK_RANDOM);
+	gcry_mpi_scan(&(k1.pub), GCRYMPI_FMT_USG, buf, 32, NULL);
+	gcry_free(buf);
+
+	otrl_dh_keypair_copy(&k2, &k1);
+
+	/*
+	ok(otrl_dh_keypair_copy(&k2, NULL),
+			"Copy didnt' segfault with a NULL src");
+
+	ok(otrl_dh_keypair_copy(NULL, &k1),
+			"Copy didnt' segfault with a NULL dst");
+	*/
+
+	ok(k1.groupid == k2.groupid &&
+			gcry_mpi_cmp(k1.priv, k2.priv) == 0 &&
+			gcry_mpi_cmp(k1.pub, k2.pub) == 0,
+			"Keypair copied");
+
+	gcry_mpi_release(k1.priv);
+	gcry_mpi_release(k1.pub);
+	gcry_mpi_release(k2.priv);
+	gcry_mpi_release(k2.pub);
+}
+
+static void test_otrl_dh_session_free()
+{
+	DH_sesskeys sess;
+	DH_keypair kp1, kp2;
+	otrl_dh_gen_keypair(DH1536_GROUP_ID, &(kp1));
+	otrl_dh_gen_keypair(DH1536_GROUP_ID, &(kp2));
+	otrl_dh_session(&sess, &kp1, kp2.pub);
+
+	otrl_dh_session_free(&sess);
+
+	ok(sess.sendenc == NULL &&
+		sess.sendmac == NULL &&
+		sess.rcvenc == NULL &&
+		sess.rcvmac == NULL &&
+		utils_is_zeroed(sess.sendctr, 16) &&
+		utils_is_zeroed(sess.rcvctr, 16) &&
+		utils_is_zeroed(sess.sendmackey, 16) &&
+		utils_is_zeroed(sess.rcvmackey, 16) &&
+		sess.sendmacused == 0 &&
+		sess.rcvmacused == 0 &&
+		utils_is_zeroed(sess.extrakey, OTRL_EXTRAKEY_BYTES),
+			"Session freed");
+}
+
+
+static void test_otrl_dh_session_blank()
+{
+	DH_sesskeys sess;
+	DH_keypair kp1, kp2;
+	otrl_dh_gen_keypair(DH1536_GROUP_ID, &(kp1));
+	otrl_dh_gen_keypair(DH1536_GROUP_ID, &(kp2));
+	otrl_dh_session(&sess, &kp1, kp2.pub);
+
+	otrl_dh_session_blank(&sess);
+
+	ok(sess.sendenc == NULL &&
+		sess.sendmac == NULL &&
+		sess.rcvenc == NULL &&
+		sess.rcvmac == NULL &&
+		utils_is_zeroed(sess.sendctr, 16) &&
+		utils_is_zeroed(sess.rcvctr, 16) &&
+		utils_is_zeroed(sess.sendmackey, 16) &&
+		utils_is_zeroed(sess.rcvmackey, 16) &&
+		sess.sendmacused == 0 &&
+		sess.rcvmacused == 0 &&
+		utils_is_zeroed(sess.extrakey, OTRL_EXTRAKEY_BYTES),
+			"Session blanked");
+}
 
 static void test_otrl_dh_gen_keypair(void)
 {
@@ -317,6 +415,33 @@ static void test_otrl_dh_compute_v2_auth_keys(void)
     gcry_free(hashdata);
 }
 
+static void test_otrl_dh_incctr()
+{
+	unsigned char ctr[8] = {0};
+	otrl_dh_incctr(ctr);
+	ok(ctr[7] == 1 && utils_is_zeroed(ctr, 7), "Counter set");
+	ctr[7] = 255;
+	otrl_dh_incctr(ctr);
+	ok(ctr[7] == 0 && ctr[6] == 1 && utils_is_zeroed(ctr, 5),
+			"Counter set");
+	memset(ctr, 255, sizeof(ctr));
+	otrl_dh_incctr(ctr);
+	ok(utils_is_zeroed(ctr, sizeof(ctr)), "Counter set");
+}
+
+static void test_otrl_dh_cmpctr()
+{
+	unsigned char ctr1[8] = {0}, ctr2[8] = {0};
+	ok(otrl_dh_cmpctr(ctr1, ctr2) == 0,
+			"Null counters are equals");
+	ctr1[1]++;
+	ok(otrl_dh_cmpctr(ctr1, ctr2) > 0,
+			"Ctr1 is bigger than ctr2");
+	ctr2[0]++;
+	ok(otrl_dh_cmpctr(ctr1, ctr2) < 0,
+			"Ctr2 is bigger than ctr1");
+}
+
 int main(int argc, char **argv)
 {
 	plan_tests(NUM_TESTS);
@@ -332,8 +457,14 @@ int main(int argc, char **argv)
 
 	test_otrl_dh_gen_keypair();
 	test_otrl_dh_keypair_free();
+	test_otrl_dh_keypair_init();
 	test_otrl_dh_compute_v2_auth_keys();
 	test_otrl_dh_session();
+	test_otrl_dh_keypair_copy();
+	test_otrl_dh_session_blank();
+	test_otrl_dh_session_free();
+	test_otrl_dh_incctr();
+	test_otrl_dh_cmpctr();
 
 	return 0;
 }
