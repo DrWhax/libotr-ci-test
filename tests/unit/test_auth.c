@@ -17,11 +17,12 @@
 
 #include <auth.h>
 #include <context.h>
+#include <gcrypt.h>
 
 #include <tap/tap.h>
 #include <utils.h>
 
-#define NUM_TESTS 3
+#define NUM_TESTS 5
 
 static void test_auth_new(void)
 {
@@ -114,6 +115,48 @@ static void test_auth_start_v23(void)
 		"OTR auth start v23 is valid");
 }
 
+static void test_otrl_auth_copy_on_key()
+{
+	struct context m_ctx, ctx;
+	OtrlAuthInfo *auth = &ctx.auth;
+	OtrlAuthInfo *m_auth = &m_ctx.auth;
+
+	otrl_auth_new(&ctx);
+	otrl_auth_new(&m_ctx);
+
+	otrl_auth_start_v23(auth, 3);
+	otrl_auth_start_v23(m_auth, 3);
+
+    m_auth->authstate = OTRL_AUTHSTATE_NONE;
+    auth->authstate = OTRL_AUTHSTATE_AWAITING_REVEALSIG,
+	otrl_auth_copy_on_key(m_auth, auth);
+
+	ok(gcry_mpi_cmp((m_auth->our_dh.priv), (auth->our_dh.priv)) != 0 &&
+		gcry_mpi_cmp((m_auth->our_dh.pub), (auth->our_dh.pub)) != 0 &&
+		m_auth->our_keyid == auth->our_keyid &&
+		memcmp(m_auth->r, auth->r, 16) != 0 &&
+		memcmp(m_auth->encgx, auth->encgx, 16) != 0 &&
+		memcmp(m_auth->hashgx, auth->hashgx, 16) != 0 &&
+	    auth->authstate == OTRL_AUTHSTATE_AWAITING_REVEALSIG,
+		"Copy not done");
+
+	auth->authstate = OTRL_AUTHSTATE_AWAITING_DHKEY;
+	m_auth->authstate = OTRL_AUTHSTATE_AWAITING_DHKEY;
+	otrl_auth_copy_on_key(m_auth, auth);
+
+	ok(m_auth->initiated == auth->initiated &&
+		m_auth->our_keyid == auth->our_keyid &&
+		m_auth->our_dh.groupid == auth->our_dh.groupid &&
+		gcry_mpi_cmp((m_auth->our_dh.priv), (auth->our_dh.priv)) == 0 &&
+		gcry_mpi_cmp((m_auth->our_dh.pub), (auth->our_dh.pub)) == 0 &&
+		m_auth->our_keyid == auth->our_keyid &&
+		memcmp(m_auth->r, auth->r, 16) == 0 &&
+		memcmp(m_auth->encgx, auth->encgx, 16) == 0 &&
+		memcmp(m_auth->hashgx, auth->hashgx, 16) == 0 &&
+	    auth->authstate == OTRL_AUTHSTATE_AWAITING_DHKEY,
+		"Copy OK");
+}
+
 int main(int argc, char **argv)
 {
 	/* Libtap call for the number of tests planned. */
@@ -125,6 +168,7 @@ int main(int argc, char **argv)
 	test_auth_new();
 	test_auth_clear();
 	test_auth_start_v23();
+	test_otrl_auth_copy_on_key();
 
 	return 0;
 }

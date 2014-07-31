@@ -13,7 +13,7 @@ noinst_PROGRAMS = test_auth test_proto test_dh \
 				  test_mem
 
 test_auth_SOURCES = test_auth.c
-test_auth_LDADD = $(LIBTAP) $(LIBOTR)
+test_auth_LDADD = $(LIBTAP) $(LIBOTR) @LIBGCRYPT_LIBS@
 
 test_proto_SOURCES = test_proto.c
 test_proto_LDADD = $(LIBTAP) $(LIBOTR)
