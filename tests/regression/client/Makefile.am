@@ -11,3 +11,5 @@ noinst_PROGRAMS = client
 
 client_SOURCES = client.c
 client_LDADD = $(LIBTAP) $(LIBOTR) -lpthread
+
+EXTRA_DIST = otr.key
