@@ -19,7 +19,49 @@
 #include <proto.h>
 #include <limits.h>
 
-#define NUM_TESTS 45
+#define NUM_TESTS 48
+
+static ConnContext * new_context(const char * user, const char * accountname,
+	const char * protocol)
+{
+    ConnContext * context;
+    OtrlSMState *smstate;
+
+    context = malloc(sizeof(ConnContext));
+
+    context->username = strdup(user);
+    context->accountname = strdup(accountname);
+    context->protocol = strdup(protocol);
+
+    context->msgstate = OTRL_MSGSTATE_PLAINTEXT;
+    otrl_auth_new(context);
+
+    smstate = malloc(sizeof(OtrlSMState));
+    otrl_sm_state_new(smstate);
+    context->smstate = smstate;
+
+    context->our_instance = 0;
+    context->their_instance = OTRL_INSTAG_MASTER;
+    context->fingerprint_root.fingerprint = NULL;
+    context->fingerprint_root.context = context;
+    context->fingerprint_root.next = NULL;
+    context->fingerprint_root.tous = NULL;
+    context->active_fingerprint = NULL;
+    memset(context->sessionid, 0, 20);
+    context->sessionid_len = 0;
+    context->protocol_version = 0;
+    context->otr_offer = OFFER_NOT;
+    context->app_data = NULL;
+    context->app_data_free = NULL;
+    context->context_priv = otrl_context_priv_new();
+    context->next = NULL;
+    context->m_context = context;
+    context->recent_rcvd_child = NULL;
+    context->recent_sent_child = NULL;
+    context->recent_child = NULL;
+
+    return context;
+}
 
 static void test_otrl_proto_whitespace_bestversion(void)
 {
@@ -268,6 +310,31 @@ static void test_otrl_proto_instance(void)
 			&& inst_to == 42, "Proto instance failed for v2");
 }
 
+static void test_otrl_version(void)
+{
+	ok(strcmp(otrl_version(), OTRL_VERSION) == 0,
+			"Otrl version OK");
+}
+
+static void test_otrl_proto_create_data(void)
+{
+	char* encmessagep = NULL;
+	ConnContext* context = new_context("Alice", "Alice's account", "Secret protocol");
+	char* msg = "HELO";
+	OtrlTLV* tlvs = NULL;
+	unsigned char flags = 12;
+	unsigned char* extrakey = NULL;
+
+	context->msgstate = OTRL_MSGSTATE_PLAINTEXT;
+	ok(otrl_proto_create_data(&encmessagep, context, msg, tlvs, flags, extrakey)
+			== gcry_error(GPG_ERR_CONFLICT), "Conflict detected");
+
+	context->msgstate = OTRL_MSGSTATE_ENCRYPTED;
+	context->context_priv->their_keyid = 0;
+	ok(otrl_proto_create_data(&encmessagep, context, msg, tlvs, flags, extrakey)
+			== gcry_error(GPG_ERR_CONFLICT), "Conflict detected");
+}
+
 int main(int argc, char **argv)
 {
 	plan_tests(NUM_TESTS);
@@ -279,6 +346,8 @@ int main(int argc, char **argv)
 	test_otrl_proto_message_type();
 	test_otrl_proto_message_version();
 	test_otrl_proto_instance();
+	test_otrl_version();
+	test_otrl_proto_create_data();
 
 	return 0;
 }
