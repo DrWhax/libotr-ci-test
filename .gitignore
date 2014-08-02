@@ -52,3 +52,4 @@ libotr.pc
 /tests/unit/test_tlv
 /tests/unit/test_mem
 /tests/unit/test_sm
+/tests/unit/test_instag
