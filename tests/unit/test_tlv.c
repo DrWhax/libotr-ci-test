@@ -80,7 +80,8 @@ static void test_otrl_tlv_parse()
 			tlv4->next != NULL,
 			"First part of the 2-part tlv chain build");
 
-	ok(tlv4->next->type == 514 &&
+	ok(tlv4->next != NULL &&
+			tlv4->next->type == 514 &&
 			tlv4->next->len == 4 &&
 			memcmp(tlv4->next->data, "1337", tlv4->next->len) == 0 && 
 			tlv4->next->data[tlv4->next->len] == 0 &&

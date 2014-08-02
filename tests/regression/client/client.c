@@ -401,9 +401,11 @@ static int send_otr_msg(int sock, const char *to, const char *from,
 	return 0;
 
 error:
-	free(omsg->plaintext);
-	free(omsg->ciphertext);
-	free(omsg);
+	if(omsg){
+		free(omsg->plaintext);
+		free(omsg->ciphertext);
+		free(omsg);
+	}
 	return -1;
 }
 
