@@ -10,7 +10,7 @@ LIBOTR=$(top_builddir)/src/libotr.la
 noinst_PROGRAMS = test_auth test_proto test_dh \
 				  test_b64 test_context \
 				  test_userstate test_tlv \
-				  test_mem
+				  test_mem test_sm
 
 test_auth_SOURCES = test_auth.c
 test_auth_LDADD = $(LIBTAP) $(LIBOTR) @LIBGCRYPT_LIBS@
@@ -35,3 +35,6 @@ test_tlv_LDADD = $(LIBTAP) $(LIBOTR)
 
 test_mem_SOURCES = test_mem.c
 test_mem_LDADD = $(LIBTAP) $(LIBOTR)
+
+test_sm_SOURCES = test_sm.c
+test_sm_LDADD = $(LIBTAP) $(LIBOTR) @LIBGCRYPT_LIBS@

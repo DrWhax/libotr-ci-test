@@ -6,5 +6,6 @@ unit/test_context
 unit/test_userstate
 unit/test_tlv
 unit/test_mem
+unit/test_sm
 regression/random-msg.sh
 regression/random-msg-disconnect.sh
