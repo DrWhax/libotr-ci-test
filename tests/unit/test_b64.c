@@ -89,7 +89,7 @@ static void test_otrl_base64_otr_encode(void)
 			"Encoded b64 test vector with success");
 	ok(otrl_base64_otr_decode(encoded, &bufp, &len) == 0,
 			"Decoded previously encoded test vector");
-	ok(strncmp(bufp, alphanum_decoded, len) == 0
+	ok(memcmp(bufp, alphanum_decoded, len) == 0
 		&& len == strlen(alphanum_decoded),
 		"Decoded value is exact");
 	free(bufp);
