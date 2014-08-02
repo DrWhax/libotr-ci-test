@@ -8,5 +8,6 @@ unit/test_tlv
 unit/test_mem
 unit/test_sm
 unit/test_instag
+unit/test_privkey
 regression/random-msg.sh
 regression/random-msg-disconnect.sh

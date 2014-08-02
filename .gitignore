@@ -53,3 +53,4 @@ libotr.pc
 /tests/unit/test_mem
 /tests/unit/test_sm
 /tests/unit/test_instag
+/tests/unit/privkey
