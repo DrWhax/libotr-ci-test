@@ -21,12 +21,13 @@
 #include <tap/tap.h>
 #include <utils.h>
 
-#define NUM_TESTS 15
+#define NUM_TESTS 23
 
 /* Copied from sm.c */
 static const int SM_MOD_LEN_BITS = 1536;
 static const char *SM_GENERATOR_S = "0x02";
 static gcry_mpi_t SM_GENERATOR = NULL;
+
 static const int SM_MSG1_LEN = 6;
 static const int SM_MSG2_LEN = 11;
 static const int SM_MSG3_LEN = 8;
@@ -35,9 +36,11 @@ static const int SM_MSG4_LEN = 3;
 /* Alice and Bob SM state for the SMP tests. */
 static OtrlSMState *astate;
 static OtrlSMState *bstate;
-static const char *alice_secret = "truie";
+static const char *secret = "truie";
 static unsigned char *alice_output;
 static int alice_output_len;
+static unsigned char *bob_output;
+static int bob_output_len;
 
 /* Stub. */
 void otrl_sm_msg1_init(gcry_mpi_t **msg1);
@@ -182,18 +185,22 @@ static void test_sm_msg4_init(void)
 static void test_sm_step1(void)
 {
 	gcry_error_t err;
+	unsigned char hash_secret[SM_DIGEST_SIZE];
 
 	astate = alloc_sm_state();
 	otrl_sm_state_new(astate);
 	otrl_sm_state_init(astate);
 
-	err = otrl_sm_step1(astate, (const unsigned char *) alice_secret,
-			strlen(alice_secret), &alice_output, &alice_output_len);
+	gcry_md_hash_buffer(SM_HASH_ALGORITHM, hash_secret, secret,
+			strlen(secret));
+
+	err = otrl_sm_step1(astate, hash_secret, sizeof(hash_secret),
+			&alice_output, &alice_output_len);
 	ok(err == GPG_ERR_NO_ERROR, "SMP step1 success");
 
 	gcry_mpi_t secret_mpi;
-	gcry_mpi_scan(&secret_mpi, GCRYMPI_FMT_USG, alice_secret,
-			strlen(alice_secret), NULL);
+	gcry_mpi_scan(&secret_mpi, GCRYMPI_FMT_USG, hash_secret,
+			sizeof(hash_secret), NULL);
 	ok(!gcry_mpi_cmp(astate->secret, secret_mpi) &&
 			astate->received_question == 0 &&
 			astate->x2 &&
@@ -223,6 +230,80 @@ static void test_sm_step2a(void)
 			"SMP step2a validate");
 }
 
+static void test_sm_step2b(void)
+{
+	gcry_error_t err;
+	unsigned char hash_secret[SM_DIGEST_SIZE];
+
+	gcry_md_hash_buffer(SM_HASH_ALGORITHM, hash_secret, secret,
+			strlen(secret));
+
+	err = otrl_sm_step2b(bstate, hash_secret, sizeof(hash_secret), &bob_output,
+			&bob_output_len);
+	ok(err == GPG_ERR_NO_ERROR, "SMP step2b success");
+
+	/* Generate expected data. */
+	gcry_mpi_t secret_mpi;
+	gcry_mpi_scan(&secret_mpi, GCRYMPI_FMT_USG, hash_secret,
+			sizeof(hash_secret), NULL);
+	ok(bob_output && bob_output_len > 0 &&
+			!gcry_mpi_cmp(bstate->secret, secret_mpi) &&
+			bstate->p &&
+			bstate->q,
+			"SMP step2b validate");
+	gcry_mpi_release(secret_mpi);
+}
+
+static void test_sm_step3(void)
+{
+	gcry_error_t err;
+
+	free(alice_output);
+
+	err = otrl_sm_step3(astate, bob_output, bob_output_len, &alice_output,
+			&alice_output_len);
+	ok(err == GPG_ERR_NO_ERROR, "SMP step3 success");
+
+	ok(alice_output && alice_output_len > 0 &&
+			astate->sm_prog_state == OTRL_SMP_PROG_OK &&
+			astate->g3o &&
+			astate->g2 &&
+			astate->g3 &&
+			astate->p &&
+			astate->q &&
+			astate->qab &&
+			astate->pab,
+			"SMP step3 validate");
+}
+
+static void test_sm_step4(void)
+{
+	gcry_error_t err;
+
+	free(bob_output);
+
+	err = otrl_sm_step4(bstate, alice_output, alice_output_len, &bob_output,
+			&bob_output_len);
+	ok(err == gcry_error(GPG_ERR_NO_ERROR), "SMP step4 success");
+
+	ok(bob_output && bob_output_len > 0 &&
+			bstate->sm_prog_state == OTRL_SMP_PROG_SUCCEEDED &&
+			bstate->pab &&
+			bstate->qab,
+			"SMP step4 validate");
+}
+
+static void test_sm_step5(void)
+{
+	gcry_error_t err;
+
+	err = otrl_sm_step5(astate, bob_output, bob_output_len);
+	ok(err == gcry_error(GPG_ERR_NO_ERROR), "SMP step5 success");
+
+	ok(astate && astate->sm_prog_state == OTRL_SMP_PROG_SUCCEEDED,
+			"SMP step5 validate");
+}
+
 int main(int argc, char **argv)
 {
 	/* Libtap call for the number of tests planned. */
@@ -245,6 +326,10 @@ int main(int argc, char **argv)
 
 	test_sm_step1();
 	test_sm_step2a();
+	test_sm_step2b();
+	test_sm_step3();
+	test_sm_step4();
+	test_sm_step5();
 
 	return 0;
 }
