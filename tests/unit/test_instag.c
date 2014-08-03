@@ -182,12 +182,21 @@ static ssize_t get_exe_path(char *buf, size_t len)
 		return -ENOMEM;
 	}
 
-	path_end = strrchr(buf, '/');
+	/*
+	 * Workaround to handle libtool path of the binary that is actually in the
+	 * $(buildir)/.libs. This is to make sure unit test works outside tree.
+	 */
+	path_end = strstr(buf, ".libs/");
 	if (!path_end) {
-		return -errno;
+		path_end = strrchr(buf, '/');
+		if (!path_end) {
+			return -errno;
+		}
+		*(++path_end) = '\0';
+	} else {
+		*path_end = '\0';
 	}
 
-	*(++path_end) = '\0';
 	return path_end - buf;
 }
 
@@ -200,11 +209,8 @@ int main(int argc, char **argv)
 		return -ENOMEM;
 	}
 
-	/*
-	 * So thanks to libtool, the current dir is in .libs/ thus we have to go
-	 * one level below to get the instag.txt file for the testing.
-	 */
-	(void) snprintf(instag_filepath, sizeof(instag_filepath), "%s/../%s",
+	/* Build the full path of the instag.txt file. */
+	(void) snprintf(instag_filepath, sizeof(instag_filepath), "%s%s",
 			curdir, "instag.txt");
 
 	test_otrl_instag_forget();
