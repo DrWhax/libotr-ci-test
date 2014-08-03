@@ -38,8 +38,6 @@ static void make_pubkey(unsigned char **pubbufp, size_t *publenp,
     gcry_sexp_t dsas,ps,qs,gs,ys;
 	size_t np,nq,ng,ny;
 	enum gcry_mpi_format format = GCRYMPI_FMT_USG;
-	unsigned char *bufp;
-	size_t lenp;
 
 	*pubbufp = NULL;
 	*publenp = 0;
@@ -72,9 +70,6 @@ static void make_pubkey(unsigned char **pubbufp, size_t *publenp,
 	*publenp += ny + 4;
 
 	*pubbufp = malloc(*publenp);
-
-	bufp = *pubbufp;
-	lenp = *publenp;
 
 	gcry_mpi_release(p);
 	gcry_mpi_release(q);
