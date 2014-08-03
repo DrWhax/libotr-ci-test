@@ -21,88 +21,66 @@
 #include <gcrypt.h>
 #include <privkey.h>
 
-#define NUM_TESTS 5
+#define NUM_TESTS 13
 
 static OtrlUserState us = NULL;
 static char filename[] = "/tmp/libotr-testing-XXXXXX";
 static FILE* f = NULL;
 
-/* Create a public key block from a private key */
-static gcry_error_t make_pubkey(unsigned char **pubbufp, size_t *publenp,
+/* Create a public key block from a private key
+ * Thank you libotr for not exposing it.
+ * Thank you so much.
+ */
+static void make_pubkey(unsigned char **pubbufp, size_t *publenp,
 	gcry_sexp_t privkey)
 {
     gcry_mpi_t p,q,g,y;
     gcry_sexp_t dsas,ps,qs,gs,ys;
-    size_t np,nq,ng,ny;
-    enum gcry_mpi_format format = GCRYMPI_FMT_USG;
-    unsigned char *bufp;
-    size_t lenp;
+	size_t np,nq,ng,ny;
+	enum gcry_mpi_format format = GCRYMPI_FMT_USG;
+	unsigned char *bufp;
+	size_t lenp;
 
-    *pubbufp = NULL;
-    *publenp = 0;
+	*pubbufp = NULL;
+	*publenp = 0;
 
-    /* Extract the public parameters */
-    dsas = gcry_sexp_find_token(privkey, "dsa", 0);
-    if (dsas == NULL) {
-	return gcry_error(GPG_ERR_UNUSABLE_SECKEY);
-    }
-    ps = gcry_sexp_find_token(dsas, "p", 0);
-    qs = gcry_sexp_find_token(dsas, "q", 0);
-    gs = gcry_sexp_find_token(dsas, "g", 0);
-    ys = gcry_sexp_find_token(dsas, "y", 0);
-    gcry_sexp_release(dsas);
-    if (!ps || !qs || !gs || !ys) {
+	/* Extract the public parameters */
+	dsas = gcry_sexp_find_token(privkey, "dsa", 0);
+	ps = gcry_sexp_find_token(dsas, "p", 0);
+	qs = gcry_sexp_find_token(dsas, "q", 0);
+	gs = gcry_sexp_find_token(dsas, "g", 0);
+	ys = gcry_sexp_find_token(dsas, "y", 0);
+	gcry_sexp_release(dsas);
+
+	p = gcry_sexp_nth_mpi(ps, 1, GCRYMPI_FMT_USG);
 	gcry_sexp_release(ps);
+	q = gcry_sexp_nth_mpi(qs, 1, GCRYMPI_FMT_USG);
 	gcry_sexp_release(qs);
+	g = gcry_sexp_nth_mpi(gs, 1, GCRYMPI_FMT_USG);
 	gcry_sexp_release(gs);
+	y = gcry_sexp_nth_mpi(ys, 1, GCRYMPI_FMT_USG);
 	gcry_sexp_release(ys);
-	return gcry_error(GPG_ERR_UNUSABLE_SECKEY);
-    }
-    p = gcry_sexp_nth_mpi(ps, 1, GCRYMPI_FMT_USG);
-    gcry_sexp_release(ps);
-    q = gcry_sexp_nth_mpi(qs, 1, GCRYMPI_FMT_USG);
-    gcry_sexp_release(qs);
-    g = gcry_sexp_nth_mpi(gs, 1, GCRYMPI_FMT_USG);
-    gcry_sexp_release(gs);
-    y = gcry_sexp_nth_mpi(ys, 1, GCRYMPI_FMT_USG);
-    gcry_sexp_release(ys);
-    if (!p || !q || !g || !y) {
+
+	*publenp = 0;
+	gcry_mpi_print(format, NULL, 0, &np, p);
+	*publenp += np + 4;
+	gcry_mpi_print(format, NULL, 0, &nq, q);
+	*publenp += nq + 4;
+	gcry_mpi_print(format, NULL, 0, &ng, g);
+	*publenp += ng + 4;
+	gcry_mpi_print(format, NULL, 0, &ny, y);
+	*publenp += ny + 4;
+
+	*pubbufp = malloc(*publenp);
+
+	bufp = *pubbufp;
+	lenp = *publenp;
+
 	gcry_mpi_release(p);
 	gcry_mpi_release(q);
 	gcry_mpi_release(g);
 	gcry_mpi_release(y);
-	return gcry_error(GPG_ERR_UNUSABLE_SECKEY);
-    }
-
-    *publenp = 0;
-    gcry_mpi_print(format, NULL, 0, &np, p);
-    *publenp += np + 4;
-    gcry_mpi_print(format, NULL, 0, &nq, q);
-    *publenp += nq + 4;
-    gcry_mpi_print(format, NULL, 0, &ng, g);
-    *publenp += ng + 4;
-    gcry_mpi_print(format, NULL, 0, &ny, y);
-    *publenp += ny + 4;
-
-    *pubbufp = malloc(*publenp);
-    if (*pubbufp == NULL) {
-	gcry_mpi_release(p);
-	gcry_mpi_release(q);
-	gcry_mpi_release(g);
-	gcry_mpi_release(y);
-	return gcry_error(GPG_ERR_ENOMEM);
-    }
-    bufp = *pubbufp;
-    lenp = *publenp;
-
-    gcry_mpi_release(p);
-    gcry_mpi_release(q);
-    gcry_mpi_release(g);
-    gcry_mpi_release(y);
-
-    return gcry_error(GPG_ERR_NO_ERROR);
 }
-
 
 static void test_otrl_privkey_generate_FILEp(void)
 {
@@ -111,11 +89,10 @@ static void test_otrl_privkey_generate_FILEp(void)
 
 	unlink(filename); // The file will be removed on close
 	us = otrl_userstate_create();
-	ok(otrl_privkey_generate_FILEp(us, f, "alice", "irc") == gcry_error(GPG_ERR_NO_ERROR),
-			"key generated");
-    OtrlPrivKey *p = otrl_privkey_find(us, "alice", "irc");
-	ok(make_pubkey(&(p->pubkey_data), &(p->pubkey_datalen), p->privkey) == gcry_error(GPG_ERR_NO_ERROR),
-			"pubkey generated");
+	ok(otrl_privkey_generate_FILEp(us, f, "alice", "irc")
+		== gcry_error(GPG_ERR_NO_ERROR) &&
+		us->privkey_root != NULL,
+		"key generated");
 }
 
 
@@ -162,14 +139,107 @@ static void test_otrl_privkey_fingerprint_raw(void)
 		"Raw privkey fingerprint ok");
 }
 
+static void test_otrl_privkey_find(void)
+{
+    OtrlPrivKey *p = NULL;
+
+	ok(otrl_privkey_find(us, "bob", "xmpp") == NULL,
+			"Privkey not found");
+
+	ok(otrl_privkey_find(us, "alice", "xmpp") == NULL,
+			"Privkey not found because of wrong protocol");
+
+	ok(otrl_privkey_find(us, "bob", "irc") == NULL,
+			"Privkey not found because of wrong name");
+
+	p = otrl_privkey_find(us, "alice", "irc");
+	ok(p != NULL &&
+		strcmp(p->accountname, "alice") == 0 &&
+		strcmp(p->protocol, "irc") == 0,
+			"Privkey found");
+}
+
+static void test_otrl_privkey_sign(void)
+{
+	unsigned char* sig = NULL;
+	size_t siglen;
+	const char* data = "Some data to sign.";
+	size_t len = strlen(data);
+	OtrlPrivKey *p = otrl_privkey_find(us, "alice", "irc");
+
+    p->pubkey_type = OTRL_PUBKEY_TYPE_DSA + 1;
+	ok(otrl_privkey_sign(&sig, &siglen, p, (unsigned char*)data, len) == gcry_error(GPG_ERR_INV_VALUE),
+			"Wrong pubkey type detected");
+	free(sig);
+
+    p->pubkey_type = OTRL_PUBKEY_TYPE_DSA;
+	ok(otrl_privkey_sign(&sig, &siglen, p, (unsigned char*)data, len) == gcry_error(GPG_ERR_NO_ERROR),
+			"data signed");
+	free(sig);
+
+	ok(otrl_privkey_sign(&sig, &siglen, p, (unsigned char*)data, 0) == gcry_error(GPG_ERR_NO_ERROR),
+			"data with len 0 signed");
+	free(sig);
+}
+
+static void test_otrl_privkey_verify(void)
+{
+	unsigned char *sigbuf = NULL;
+	size_t siglen;
+	const char *data = "Some data to sign.";
+	OtrlPrivKey *privkey = otrl_privkey_find(us, "alice", "irc");
+    gcry_mpi_t p,q,g,y;
+    gcry_sexp_t dsas,ps,qs,gs,ys;
+    gcry_sexp_t pubs = NULL;
+
+	/* Extract pubkey */
+	dsas = gcry_sexp_find_token(privkey->privkey, "dsa", 0);
+	ps = gcry_sexp_find_token(dsas, "p", 0);
+	qs = gcry_sexp_find_token(dsas, "q", 0);
+	gs = gcry_sexp_find_token(dsas, "g", 0);
+	ys = gcry_sexp_find_token(dsas, "y", 0);
+	gcry_sexp_release(dsas);
+	p = gcry_sexp_nth_mpi(ps, 1, GCRYMPI_FMT_USG);
+	q = gcry_sexp_nth_mpi(qs, 1, GCRYMPI_FMT_USG);
+	g = gcry_sexp_nth_mpi(gs, 1, GCRYMPI_FMT_USG);
+	y = gcry_sexp_nth_mpi(ys, 1, GCRYMPI_FMT_USG);
+	gcry_sexp_release(ps);
+	gcry_sexp_release(qs);
+	gcry_sexp_release(gs);
+	gcry_sexp_release(ys);
+    gcry_sexp_build(&pubs, NULL, "(public-key (dsa (p %m)(q %m)(g %m)(y %m)))", p, q, g, y);
+    gcry_mpi_release(p);
+    gcry_mpi_release(q);
+    gcry_mpi_release(g);
+    gcry_mpi_release(y);
+
+	otrl_privkey_sign(&sigbuf, &siglen, privkey, (unsigned char*)data, strlen(data));
+	ok(otrl_privkey_verify(sigbuf, siglen, OTRL_PUBKEY_TYPE_DSA, pubs, (unsigned char*)data, strlen(data)) == 0,
+		"Signature ok");
+
+	ok(otrl_privkey_verify(sigbuf, siglen, OTRL_PUBKEY_TYPE_DSA,
+			pubs, (unsigned char*)data+1, strlen(data)-1) 
+			== gcry_error(GPG_ERR_BAD_SIGNATURE),
+		"Wrong signature");
+
+	free(sigbuf);
+}
+
 int main(int argc, char **argv)
 {
+    OtrlPrivKey *p;
 	plan_tests(NUM_TESTS);
 
 	test_otrl_privkey_generate_FILEp(); //This must be the first one
+	p = otrl_privkey_find(us, "alice", "irc");
+	make_pubkey(&(p->pubkey_data), &(p->pubkey_datalen), p->privkey);
+
 	test_otrl_privkey_hash_to_human();
 	test_otrl_privkey_fingerprint();
 	test_otrl_privkey_fingerprint_raw();
+	test_otrl_privkey_sign();
+	test_otrl_privkey_verify();
+	test_otrl_privkey_find();
 
 	fclose(f);
 	otrl_userstate_free(us);
