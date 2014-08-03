@@ -45,3 +45,5 @@ test_instag_LDADD = $(LIBTAP) $(LIBOTR) @LIBGCRYPT_LIBS@
 
 test_privkey_SOURCES = test_privkey.c
 test_privkey_LDADD = $(LIBTAP) $(LIBOTR) @LIBGCRYPT_LIBS@
+
+EXTRA_DIST = instag.txt

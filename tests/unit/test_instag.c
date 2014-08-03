@@ -18,11 +18,17 @@
 #include <auth.h>
 #include <context.h>
 #include <gcrypt.h>
+#include <limits.h>
+#include <unistd.h>
 
 #include <tap/tap.h>
 #include <utils.h>
 
 #define NUM_TESTS 13
+
+/* Current directory of this executable. */
+static char curdir[PATH_MAX];
+static char instag_filepath[PATH_MAX];
 
 static void test_otrl_instag_forget(void)
 {
@@ -109,7 +115,7 @@ static void test_otrl_instag_read(void)
 			gcry_error_from_errno(ENOENT),
 			"Non-existent file detected");
 
-	ok(otrl_instag_read(us, "./instag.txt") == GPG_ERR_NO_ERROR,
+	ok(otrl_instag_read(us, instag_filepath) == GPG_ERR_NO_ERROR,
 			"Instag called with success");
 
 	one = otrl_instag_find(us, "alice_xmpp", "XMPP");
@@ -132,7 +138,7 @@ static void test_otrl_instag_read(void)
 
 static void test_otrl_instag_read_FILEp(void)
 {
-    FILE* instf = fopen("./instag.txt", "rb");
+    FILE* instf = fopen(instag_filepath, "rb");
 	OtrlUserState us = otrl_userstate_create();
 	OtrlInsTag* one, *two, *three, *four;
 	char sone[9] = {0},
@@ -168,10 +174,38 @@ static void test_otrl_instag_get_new(void)
 			"New instag generated");
 }
 
+static ssize_t get_exe_path(char *buf, size_t len)
+{
+	char *path_end;
+
+	if (readlink("/proc/self/exe", buf, len) < 0) {
+		return -ENOMEM;
+	}
+
+	path_end = strrchr(buf, '/');
+	if (!path_end) {
+		return -errno;
+	}
+
+	*(++path_end) = '\0';
+	return path_end - buf;
+}
+
 int main(int argc, char **argv)
 {
 	/* Libtap call for the number of tests planned. */
 	plan_tests(NUM_TESTS);
+
+	if (get_exe_path(curdir, sizeof(curdir)) < 0) {
+		return -ENOMEM;
+	}
+
+	/*
+	 * So thanks to libtool, the current dir is in .libs/ thus we have to go
+	 * one level below to get the instag.txt file for the testing.
+	 */
+	(void) snprintf(instag_filepath, sizeof(instag_filepath), "%s/../%s",
+			curdir, "instag.txt");
 
 	test_otrl_instag_forget();
 	test_otrl_instag_forget_all();
