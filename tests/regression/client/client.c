@@ -90,6 +90,16 @@ static unsigned int session_disconnected;
  */
 static pthread_mutex_t msg_lock = PTHREAD_MUTEX_INITIALIZER;
 
+/* Logging lock. Libtap behaves badly with multi threaded output. */
+static pthread_mutex_t log_lock = PTHREAD_MUTEX_INITIALIZER;
+
+#define OK(cond, fmt, args...)                   \
+	do {                                         \
+		pthread_mutex_lock(&log_lock);           \
+		ok(cond, fmt, ## args);                  \
+		pthread_mutex_unlock(&log_lock);         \
+	} while (0)
+
 static inline pid_t gettid(void)
 {
 	return syscall(__NR_gettid);
@@ -152,7 +162,7 @@ static void ops_gone_secure(void *opdata, ConnContext *context)
 	oinfo->gone_secure = 1;
 	/* XXX: gone_insecure is never called ref bug #40 so this will always be
 	 * true. */
-	ok(oinfo->gone_secure, "Gone secure for %s",
+	OK(oinfo->gone_secure, "Gone secure for %s",
 			oinfo->user);
 }
 
@@ -160,7 +170,7 @@ static void ops_gone_insecure(void *opdata, ConnContext *context)
 {
 	struct otr_info *oinfo = opdata;
 
-	ok(oinfo->gone_secure, "Gone insecure for %s",
+	OK(oinfo->gone_secure, "Gone insecure for %s",
 			oinfo->user);
 	oinfo->gone_secure = 0;
 }
@@ -222,7 +232,7 @@ static void ops_handle_msg_event(void *opdata, OtrlMessageEvent msg_event,
 		break;
 	case OTRL_MSGEVENT_SETUP_ERROR:
 		msg = "OTRL_MSGEVENT_SETUP_ERROR";
-		ok(!oinfo->gone_secure, "%s", msg);
+		OK(!oinfo->gone_secure, "%s", msg);
 		break;
 	case OTRL_MSGEVENT_MSG_REFLECTED:
 		//msg = "OTRL_MSGEVENT_MSG_REFLECTED";
@@ -429,12 +439,12 @@ static int recv_otr_msg(int sock, const char *to, const char *from,
 	pthread_mutex_unlock(&msg_lock);
 	if (!err) {
 		if (new_msg) {
-			ok(strncmp(omsg->plaintext, new_msg, omsg->plaintext_len) == 0,
+			OK(strncmp(omsg->plaintext, new_msg, omsg->plaintext_len) == 0,
 					"Message exchanged is valid");
 			update_msg_counter();
 		}
 	} else {
-		ok(err == 1, "Internal OTR message valid");
+		OK(err == 1, "Internal OTR message valid");
 	}
 
 	free(omsg->plaintext);
@@ -449,7 +459,7 @@ static int recv_otr_msg(int sock, const char *to, const char *from,
 	 * session at this point.
 	 */
 	if (tlv && !oinfo->gone_secure) {
-		ok(session_disconnected, "Disconnected TLV confirmed");
+		OK(session_disconnected, "Disconnected TLV confirmed");
 	}
 
 	otrl_tlv_free(tlvs);
@@ -536,7 +546,7 @@ static void *alice_thread(void *data)
 			otrl_message_disconnect(user_state, &ops, &oinfo,
 					alice_name, protocol, bob_name, OTRL_INSTAG_BEST);
 			pthread_mutex_unlock(&msg_lock);
-			ok(!oinfo.gone_secure, "OTR message disconnect");
+			OK(!oinfo.gone_secure, "OTR message disconnect");
 		}
 
 		/* No event thus timeout, send message to Alice. */
@@ -748,7 +758,7 @@ static void load_instag(void)
 	}
 
 	err = otrl_instag_read(user_state, opt_instag_path);
-	ok(err == GPG_ERR_NO_ERROR, "Loading instag from given file");
+	OK(err == GPG_ERR_NO_ERROR, "Loading instag from given file");
 }
 
 /*
@@ -766,7 +776,7 @@ static void load_key(void)
 	}
 
 	err = otrl_privkey_read(user_state, opt_key_path);
-	ok(err == GPG_ERR_NO_ERROR, "Loading key from given file");
+	OK(err == GPG_ERR_NO_ERROR, "Loading key from given file");
 }
 
 /*
@@ -785,7 +795,7 @@ static void load_key_fp(void)
 
 	err = otrl_privkey_read_fingerprints(user_state, opt_key_fp_path, NULL,
 			NULL);
-	ok(err == GPG_ERR_NO_ERROR, "Loading key fingerprints from given file");
+	OK(err == GPG_ERR_NO_ERROR, "Loading key fingerprints from given file");
 }
 
 static int create_unix_socket(const char *pathname,
@@ -834,10 +844,10 @@ static int init_client(void)
 
 	/* Init OTR library. */
 	OTRL_INIT;
-	ok(1, "OTR library initialization done.");
+	OK(1, "OTR library initialization done.");
 
 	user_state = otrl_userstate_create();
-	ok(user_state, "OTR userstate creation done.");
+	OK(user_state, "OTR userstate creation done.");
 	if (!user_state) {
 		fail("Out of memory on userstate create");
 		ret = -ENOMEM;
