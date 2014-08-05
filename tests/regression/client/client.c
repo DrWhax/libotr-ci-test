@@ -213,7 +213,7 @@ static void ops_otr_error_message_free(void *opdata, const char *err_msg)
 static void ops_handle_msg_event(void *opdata, OtrlMessageEvent msg_event,
 		ConnContext *context, const char *message, gcry_error_t err)
 {
-	char* msg = "";
+	//char* msg = "";
 	struct otr_info *oinfo = opdata;
 
 	switch(msg_event) {
@@ -231,8 +231,7 @@ static void ops_handle_msg_event(void *opdata, OtrlMessageEvent msg_event,
 		oinfo->gone_secure = 0;
 		break;
 	case OTRL_MSGEVENT_SETUP_ERROR:
-		msg = "OTRL_MSGEVENT_SETUP_ERROR";
-		OK(!oinfo->gone_secure, "%s", msg);
+		//msg = "OTRL_MSGEVENT_SETUP_ERROR";
 		break;
 	case OTRL_MSGEVENT_MSG_REFLECTED:
 		//msg = "OTRL_MSGEVENT_MSG_REFLECTED";
