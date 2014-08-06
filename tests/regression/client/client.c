@@ -841,6 +841,9 @@ static int init_client(void)
 {
 	int ret;
 
+	/* Init libgcrypt threading system. */
+	gcry_control(GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread);
+
 	/* Init OTR library. */
 	OTRL_INIT;
 	OK(1, "OTR library initialization done.");

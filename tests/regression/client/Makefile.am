@@ -10,6 +10,6 @@ LIBOTR=$(top_builddir)/src/libotr.la
 noinst_PROGRAMS = client
 
 client_SOURCES = client.c
-client_LDADD = $(LIBTAP) $(LIBOTR) -lpthread
+client_LDADD = $(LIBTAP) $(LIBOTR) -lpthread @LIBGCRYPT_LIBS@
 
 EXTRA_DIST = otr.key
