@@ -287,38 +287,116 @@ static int ops_is_logged_in(void *opdata, const char *accountname,
 	return 1;
 }
 
+static void ops_create_privkey(void *opdata, const char *accountname,
+		const char *protocol)
+{
+	/* XXX: We should gen. our own key each time at some point. */
+	return;
+}
+
+static void ops_update_context_list(void *opdata)
+{
+	return;
+}
+
+static void ops_new_fingerprint(void *opdata, OtrlUserState us,
+		const char *accountname, const char *protocol,
+		const char *username, unsigned char fingerprint[20])
+{
+	return;
+}
+
+static void ops_write_fingerprints(void *opdata)
+{
+	return;
+}
+
+static void ops_still_secure(void *opdata, ConnContext *context, int is_reply)
+{
+	struct otr_info *oinfo = opdata;
+
+	OK(oinfo->auth_done, "OP still secure");
+}
+
+static void ops_received_symkey(void *opdata, ConnContext *context,
+		unsigned int use, const unsigned char *usedata,
+		size_t usedatalen, const unsigned char *symkey)
+{
+	return;
+}
+
+static const char *ops_resent_msg_prefix(void *opdata, ConnContext *context)
+{
+	/* Just so we can test resent_msg_prefix_free */
+	char *prefix = zmalloc(32);
+	strncpy(prefix, "[such resent]", 32);
+
+	return prefix;
+}
+
+static void ops_resent_msg_prefix_free(void *opdata, const char *prefix)
+{
+	free((char *) prefix);
+}
+
+static void ops_convert_msg(void *opdata, ConnContext *context,
+		OtrlConvertType convert_type, char ** dest, const char *src)
+{
+	switch (convert_type) {
+	case OTRL_CONVERT_SENDING:
+	case OTRL_CONVERT_RECEIVING:
+		break;
+	default:
+		OK(0, "OP convert_msg, got a unknown type %d", convert_type);
+		break;
+	}
+
+	*dest = NULL;
+}
+
+static void ops_convert_free(void *opdata, ConnContext *context, char *dest)
+{
+	return;
+}
+
 /* Stub */
 static void ops_handle_smp_event(void *opdata, OtrlSMPEvent smp_event,
 		ConnContext *context, unsigned short progress_percent, char *question);
+static void ops_timer_control(void *opdata, unsigned int interval);
 
 /* OTR message operations. */
 static OtrlMessageAppOps ops = {
 	ops_policy,
-	NULL, /* create_privkey */
+	ops_create_privkey,
 	ops_is_logged_in,
 	ops_inject_msg,
-	NULL, /* update_context_list */
-	NULL, /* new_fingerprint */
-	NULL, /* write_fingerprints */
+	ops_update_context_list,
+	ops_new_fingerprint,
+	ops_write_fingerprints,
 	ops_gone_secure,
 	ops_gone_insecure,
-	NULL, /* still_secure */
+	ops_still_secure,
 	ops_max_message_size,
-	NULL, /* account_name */
-	NULL, /* account_name_free */
-	NULL, /* received_symkey */
+	NULL, /* account_name - NOT USED */
+	NULL, /* account_name_free - NOT USED */
+	ops_received_symkey,
 	ops_otr_error_message,
 	ops_otr_error_message_free,
-	NULL, /* resent_msg_prefix */
-	NULL, /* resent_msg_prefix_free */
+	ops_resent_msg_prefix,
+	ops_resent_msg_prefix_free,
 	ops_handle_smp_event,
 	ops_handle_msg_event,
 	ops_create_instag,
-	NULL, /* convert_msg */
-	NULL, /* convert_free */
-	NULL, /* timer_control */
+	ops_convert_msg,
+	ops_convert_free,
+	ops_timer_control,
 };
 
+
+static void ops_timer_control(void *opdata, unsigned int interval)
+{
+	otrl_message_poll(user_state, &ops, NULL);
+}
 
 static void ops_handle_smp_event(void *opdata, OtrlSMPEvent smp_event,
 		ConnContext *context, unsigned short progress_percent, char *question)
