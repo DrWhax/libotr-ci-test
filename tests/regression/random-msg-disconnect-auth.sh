@@ -10,5 +10,5 @@ MAX_INTERVAL=100 # msec
 
 source $TESTDIR/utils/tap/tap.sh
 
-diag "Messaging with random interval of max $MAX_INTERVAL with disconnect"
+diag "Messaging with random interval of max $MAX_INTERVAL with disconnect and authentication"
 $CLIENT --disconnect --load-key $KEYFILE --timeout $MAX_INTERVAL --max-msg $MAX_MSG --auth

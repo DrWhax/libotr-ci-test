@@ -53,6 +53,7 @@ static struct option long_opts[] = {
 	{ "max-msg",     1, NULL, 'm' },
 	{ "disconnect",  0, NULL, 'd' },
 	{ "auth",        0, NULL, 'a' },
+	{ "fragment",    0, NULL, 'F' },
 
 	/* Closure. */
 	{ NULL, 0, NULL, 0 }
@@ -64,8 +65,13 @@ static char *opt_key_fp_path;
 static unsigned int opt_max_num_msg;
 static int opt_disconnect;
 static int opt_auth;
-/* By default, don't fragment. */
-static int opt_max_size = 0;
+static int opt_fragment;
+
+/* Currently, the message size sent is between 1 and 600 len so 100 is a good
+ * middle ground. */
+static const int fragment_size = 100;
+/* By default, don't send frag. */
+static OtrlFragmentPolicy fragPolicy = OTRL_FRAGMENT_SEND_SKIP;
 
 static const char *protocol = "otr-test";
 static const char *alice_name = "alice";
@@ -178,7 +184,10 @@ static void ops_gone_insecure(void *opdata, ConnContext *context)
 
 static int ops_max_message_size(void *opdata, ConnContext *context)
 {
-	return opt_max_size;
+	if (opt_fragment) {
+		return fragment_size;
+	}
+	return 0;
 }
 
 static const char *ops_otr_error_message(void *opdata, ConnContext *context,
@@ -515,7 +524,7 @@ static int send_otr_msg(int sock, const char *to, const char *from,
 	pthread_mutex_lock(&msg_lock);
 	err = otrl_message_sending(user_state, &ops, oinfo, from, protocol, to,
 			OTRL_INSTAG_BEST, omsg->plaintext, NULL, &new_msg,
-			OTRL_FRAGMENT_SEND_SKIP, NULL, NULL, NULL);
+			fragPolicy, NULL, NULL, NULL);
 	pthread_mutex_unlock(&msg_lock);
 	if (err) {
 		goto error;
@@ -1022,6 +1031,10 @@ static int init_client(void)
 		goto error;
 	}
 
+	if (opt_fragment) {
+		fragPolicy = OTRL_FRAGMENT_SEND_ALL;
+	}
+
 	return 0;
 
 error:
@@ -1067,7 +1080,7 @@ int main(int argc, char **argv)
 		goto error;
 	}
 
-	while ((opt = getopt_long(argc, argv, "+i:k:f:t:m:da", long_opts, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "+i:k:f:t:m:daF", long_opts, NULL)) != -1) {
 		switch (opt) {
 		case 'i':
 			opt_instag_path = strdup(optarg);
@@ -1089,6 +1102,9 @@ int main(int argc, char **argv)
 			break;
 		case 'a':
 			opt_auth = 1;
+			break;
+		case 'F':
+			opt_fragment = 1;
 			break;
 		default:
 			goto error;
