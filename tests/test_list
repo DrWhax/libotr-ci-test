@@ -11,3 +11,4 @@ unit/test_instag
 unit/test_privkey
 regression/random-msg.sh
 regression/random-msg-disconnect.sh
+regression/random-msg-disconnect-auth.sh

@@ -52,6 +52,7 @@ static struct option long_opts[] = {
 	{ "timeout",     1, NULL, 't' },
 	{ "max-msg",     1, NULL, 'm' },
 	{ "disconnect",  0, NULL, 'd' },
+	{ "auth",        0, NULL, 'a' },
 
 	/* Closure. */
 	{ NULL, 0, NULL, 0 }
@@ -62,6 +63,7 @@ static char *opt_key_path;
 static char *opt_key_fp_path;
 static unsigned int opt_max_num_msg;
 static int opt_disconnect;
+static int opt_auth;
 /* By default, don't fragment. */
 static int opt_max_size = 0;
 
@@ -71,6 +73,9 @@ static const char *bob_name = "bob";
 
 static const char *unix_sock_bob_path = "/tmp/otr-test-bob.sock";
 static const char *unix_sock_alice_path = "/tmp/otr-test-alice.sock";
+
+static const char *auth_question = "What is NSA?";
+static const char *auth_secret = "No Sugar Added";
 
 /* Alice and Bob thread's socket. */
 static int alice_sock;
@@ -100,11 +105,6 @@ static pthread_mutex_t log_lock = PTHREAD_MUTEX_INITIALIZER;
 		pthread_mutex_unlock(&log_lock);         \
 	} while (0)
 
-static inline pid_t gettid(void)
-{
-	return syscall(__NR_gettid);
-}
-
 /*
  * Used to pass OTR message between threads. This contains the cipher and
  * plaintext so we are able to validate what's expected in both threads.
@@ -120,6 +120,7 @@ struct otr_info {
 	const char *user;
 	int sock;
 	unsigned int gone_secure;
+	unsigned int auth_done;
 };
 
 /* Stub */
@@ -286,6 +287,10 @@ static int ops_is_logged_in(void *opdata, const char *accountname,
 	return 1;
 }
 
+/* Stub */
+static void ops_handle_smp_event(void *opdata, OtrlSMPEvent smp_event,
+		ConnContext *context, unsigned short progress_percent, char *question);
+
 /* OTR message operations. */
 static OtrlMessageAppOps ops = {
 	ops_policy,
@@ -306,13 +311,56 @@ static OtrlMessageAppOps ops = {
 	ops_otr_error_message_free,
 	NULL, /* resent_msg_prefix */
 	NULL, /* resent_msg_prefix_free */
-	NULL, /* handle_smp_event */
+	ops_handle_smp_event,
 	ops_handle_msg_event,
 	ops_create_instag,
 	NULL, /* convert_msg */
 	NULL, /* convert_free */
 	NULL, /* timer_control */
 };
+
+
+static void ops_handle_smp_event(void *opdata, OtrlSMPEvent smp_event,
+		ConnContext *context, unsigned short progress_percent, char *question)
+{
+	struct otr_info *oinfo = opdata;
+
+	switch (smp_event) {
+	case OTRL_SMPEVENT_ASK_FOR_SECRET:
+		OK(!oinfo->auth_done &&
+			!strncmp(oinfo->user, alice_name, strlen(alice_name)),
+			"SMP Event, %s asking for secret", alice_name);
+		break;
+	case OTRL_SMPEVENT_ASK_FOR_ANSWER:
+		OK(!oinfo->auth_done &&
+				!strncmp(oinfo->user, bob_name, strlen(bob_name)) &&
+				!strncmp(auth_question, question, strlen(auth_question)),
+				"SMP Event, %s asking for secret", bob_name);
+		/*
+		 * Directly respond to the SMP auth here. Much more easy instead of in
+		 * bob's thread.
+		 */
+		otrl_message_respond_smp(user_state, &ops, opdata, context,
+				(unsigned char *) auth_secret, strlen(auth_secret));
+		break;
+	case OTRL_SMPEVENT_IN_PROGRESS:
+		OK(!oinfo->auth_done &&
+				!strncmp(oinfo->user, alice_name, strlen(alice_name)),
+				"SMP Event, %s asking for secret", alice_name);
+		break;
+	case OTRL_SMPEVENT_SUCCESS:
+		oinfo->auth_done = 1;
+		OK(oinfo->auth_done, "SMP authentication success for %s", oinfo->user);
+		break;
+	case OTRL_SMPEVENT_ABORT:
+	case OTRL_SMPEVENT_FAILURE:
+	case OTRL_SMPEVENT_CHEATED:
+	case OTRL_SMPEVENT_ERROR:
+	default:
+		OK(0, "SMP auth failed with event %d", smp_event);
+		break;
+	}
+}
 
 static void cleanup(void)
 {
@@ -488,6 +536,7 @@ static int add_sock_to_pollset(int epfd, int sock, uint32_t req_ev)
 static void *alice_thread(void *data)
 {
 	int sock_to_bob, sock_from_bob = 0, epfd, ret;
+	unsigned int auth_started = 0;
 	struct otr_info oinfo;
 
 	/* Poll size is ignored since 2.6.8 */
@@ -503,7 +552,7 @@ static void *alice_thread(void *data)
 		goto sock_error;
 	}
 	oinfo.sock = sock_to_bob;
-	oinfo.user = "Alice";
+	oinfo.user = alice_name;
 
 	ret = connect(sock_to_bob, (struct sockaddr *) &bob_sun,
 			sizeof(bob_sun));
@@ -538,7 +587,7 @@ static void *alice_thread(void *data)
 		nb_fd = ret;
 
 		/* Each timeout to 10 finishes the OTR session. */
-		if (!(timeout % 3) && opt_disconnect) {
+		if (!(timeout % 3) && opt_disconnect && (opt_auth && oinfo.auth_done)) {
 			pthread_mutex_lock(&msg_lock);
 			session_disconnected = 1;
 			oinfo.gone_secure = 0;
@@ -546,6 +595,21 @@ static void *alice_thread(void *data)
 					alice_name, protocol, bob_name, OTRL_INSTAG_BEST);
 			pthread_mutex_unlock(&msg_lock);
 			OK(!oinfo.gone_secure, "OTR message disconnect");
+		}
+
+		/* Start authentication with Bob. */
+		if (opt_auth && !auth_started && oinfo.gone_secure) {
+			ConnContext *ctx;
+
+			/* We have to find our context before auth. */
+			ctx = otrl_context_find(user_state, bob_name, alice_name,
+					protocol, OTRL_INSTAG_BEST, 0, NULL, NULL, &oinfo);
+			OK(ctx, "Alice context found for SMP auth");
+
+			otrl_message_initiate_smp_q(user_state, &ops, &oinfo, ctx,
+					auth_question, (unsigned char *) auth_secret,
+					strlen(auth_secret));
+			auth_started = 1;
 		}
 
 		/* No event thus timeout, send message to Alice. */
@@ -626,7 +690,7 @@ static void *bob_thread(void *data)
 		goto sock_error;
 	}
 	oinfo.sock = sock_to_alice;
-	oinfo.user = "Bob";
+	oinfo.user = bob_name;
 
 	ret = connect(sock_to_alice, (struct sockaddr *) &alice_sun,
 			sizeof(alice_sun));
@@ -915,7 +979,7 @@ int main(int argc, char **argv)
 		goto error;
 	}
 
-	while ((opt = getopt_long(argc, argv, "+i:k:f:t:m:d", long_opts, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "+i:k:f:t:m:da", long_opts, NULL)) != -1) {
 		switch (opt) {
 		case 'i':
 			opt_instag_path = strdup(optarg);
@@ -934,6 +998,9 @@ int main(int argc, char **argv)
 			break;
 		case 'd':
 			opt_disconnect = 1;
+			break;
+		case 'a':
+			opt_auth = 1;
 			break;
 		default:
 			goto error;
