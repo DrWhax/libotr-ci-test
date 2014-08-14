@@ -315,7 +315,7 @@ static void ops_still_secure(void *opdata, ConnContext *context, int is_reply)
 {
 	struct otr_info *oinfo = opdata;
 
-	OK(oinfo->auth_done, "OP still secure");
+	OK(oinfo->gone_secure, "OP still secure");
 }
 
 static void ops_received_symkey(void *opdata, ConnContext *context,
@@ -633,6 +633,12 @@ static void *alice_thread(void *data)
 	}
 	oinfo.sock = sock_to_bob;
 	oinfo.user = alice_name;
+	if (!opt_auth) {
+		/* We are not going to SMP auth for this session so indicate it's
+		 * completed so we can go forward with random disconnect.
+		 */
+		oinfo.auth_done = 1;
+	}
 
 	ret = connect(sock_to_bob, (struct sockaddr *) &bob_sun,
 			sizeof(bob_sun));
@@ -667,7 +673,7 @@ static void *alice_thread(void *data)
 		nb_fd = ret;
 
 		/* Each timeout to 10 finishes the OTR session. */
-		if (!(timeout % 3) && opt_disconnect && (opt_auth && oinfo.auth_done)) {
+		if (!(timeout % 3) && opt_disconnect && oinfo.auth_done) {
 			pthread_mutex_lock(&msg_lock);
 			session_disconnected = 1;
 			oinfo.gone_secure = 0;
