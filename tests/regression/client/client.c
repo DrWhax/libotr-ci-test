@@ -335,7 +335,7 @@ static void ops_handle_smp_event(void *opdata, OtrlSMPEvent smp_event,
 		OK(!oinfo->auth_done &&
 				!strncmp(oinfo->user, bob_name, strlen(bob_name)) &&
 				!strncmp(auth_question, question, strlen(auth_question)),
-				"SMP Event, %s asking for secret", bob_name);
+				"SMP Event, %s asking for answer", bob_name);
 		/*
 		 * Directly respond to the SMP auth here. Much more easy instead of in
 		 * bob's thread.
@@ -539,6 +539,8 @@ static void *alice_thread(void *data)
 	unsigned int auth_started = 0;
 	struct otr_info oinfo;
 
+	memset(&oinfo, 0, sizeof(oinfo));
+
 	/* Poll size is ignored since 2.6.8 */
 	epfd = epoll_create(42);
 	if (epfd < 0) {
@@ -676,6 +678,8 @@ static void *bob_thread(void *data)
 {
 	int sock_to_alice, sock_from_alice = 0, epfd, ret;
 	struct otr_info oinfo;
+
+	memset(&oinfo, 0, sizeof(oinfo));
 
 	/* Poll size is ignored since 2.6.8 */
 	epfd = epoll_create(42);
