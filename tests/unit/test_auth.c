@@ -21,6 +21,9 @@
 
 #include <tap/tap.h>
 #include <utils.h>
+#include <proto.h>
+
+GCRY_THREAD_OPTION_PTHREAD_IMPL;
 
 #define NUM_TESTS 5
 
@@ -161,6 +164,9 @@ int main(int argc, char **argv)
 {
 	/* Libtap call for the number of tests planned. */
 	plan_tests(NUM_TESTS);
+
+	gcry_control(GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread);
+	OTRL_INIT;
 
 	/* Initialize libotr. */
 	otrl_dh_init();

@@ -20,6 +20,9 @@
 #include <tap/tap.h>
 #include <gcrypt.h>
 #include <privkey.h>
+#include <proto.h>
+
+GCRY_THREAD_OPTION_PTHREAD_IMPL;
 
 #define NUM_TESTS 13
 
@@ -224,6 +227,9 @@ int main(int argc, char **argv)
 {
     OtrlPrivKey *p;
 	plan_tests(NUM_TESTS);
+
+	gcry_control(GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread);
+	OTRL_INIT;
 
 	test_otrl_privkey_generate_FILEp(); //This must be the first one
 	p = otrl_privkey_find(us, "alice", "irc");

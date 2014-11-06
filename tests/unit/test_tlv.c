@@ -18,6 +18,9 @@
 #include <tap/tap.h>
 #include <gcrypt.h>
 #include <tlv.h>
+#include <proto.h>
+
+GCRY_THREAD_OPTION_PTHREAD_IMPL;
 
 #define NUM_TESTS 11
 
@@ -137,6 +140,9 @@ static void test_otrl_tlv_find()
 int main(int argc, char** argv)
 {
 	plan_tests(NUM_TESTS);
+
+	gcry_control(GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread);
+	OTRL_INIT;
 
 	test_otrl_tlv_new();
 	test_otrl_tlv_parse();

@@ -18,6 +18,9 @@
 #include <tap/tap.h>
 #include <gcrypt.h>
 #include <mem.h>
+#include <proto.h>
+
+GCRY_THREAD_OPTION_PTHREAD_IMPL;
 
 #define NUM_TESTS 5
 
@@ -42,6 +45,10 @@ static void test_otrl_mem_differ(void)
 int main(int argc, char **argv)
 {
 	plan_tests(NUM_TESTS);
+
+	gcry_control(GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread);
+	OTRL_INIT;
+
 
 	test_otrl_mem_differ();
 

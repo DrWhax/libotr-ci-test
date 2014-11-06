@@ -21,6 +21,9 @@
 
 #include <b64.h>
 #include <tap/tap.h>
+#include <proto.h>
+
+GCRY_THREAD_OPTION_PTHREAD_IMPL;
 
 #define NUM_TESTS 10
 
@@ -99,6 +102,9 @@ static void test_otrl_base64_otr_encode(void)
 int main(int argc, char** argv)
 {
 	plan_tests(NUM_TESTS);
+
+	gcry_control(GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread);
+	OTRL_INIT;
 
 	test_otrl_base64_otr_decode();
 	test_otrl_base64_otr_encode();

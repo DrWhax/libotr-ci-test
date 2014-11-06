@@ -19,6 +19,9 @@
 #include <gcrypt.h>
 #include <dh.h>
 #include <utils.h>
+#include <proto.h>
+
+GCRY_THREAD_OPTION_PTHREAD_IMPL;
 
 #define NUM_TESTS 38
 
@@ -445,6 +448,9 @@ static void test_otrl_dh_cmpctr()
 int main(int argc, char **argv)
 {
 	plan_tests(NUM_TESTS);
+
+	gcry_control(GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread);
+	OTRL_INIT;
 
 	otrl_dh_init(); // Initialize math stuff
 

@@ -18,6 +18,9 @@
 #include <tap/tap.h>
 #include <proto.h>
 #include <limits.h>
+#include <proto.h>
+
+GCRY_THREAD_OPTION_PTHREAD_IMPL;
 
 #define NUM_TESTS 48
 
@@ -338,6 +341,9 @@ static void test_otrl_proto_create_data(void)
 int main(int argc, char **argv)
 {
 	plan_tests(NUM_TESTS);
+
+	gcry_control(GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread);
+	OTRL_INIT;
 
 	test_otrl_proto_default_query_msg();
 	test_otrl_proto_query_bestversion();
