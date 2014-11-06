@@ -16,4 +16,4 @@ regression/random-msg-frag.sh
 regression/random-msg-disconnect.sh
 regression/random-msg-disconnect-frag.sh
 regression/random-msg-disconnect-auth.sh
-regression/random-msg-disconnect-auth-frag.sh
+regression/random-msg-disconnect-frag-auth.sh
