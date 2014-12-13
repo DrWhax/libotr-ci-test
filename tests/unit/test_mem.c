@@ -49,7 +49,6 @@ int main(int argc, char **argv)
 	gcry_control(GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread);
 	OTRL_INIT;
 
-
 	test_otrl_mem_differ();
 
 	return 0;

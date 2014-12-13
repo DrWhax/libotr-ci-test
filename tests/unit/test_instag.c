@@ -51,6 +51,8 @@ static void test_otrl_instag_forget(void)
 
 	otrl_instag_forget(instag2);
 	ok(instag1->next == NULL, "Instag forgotten without segfault");
+
+	free(instag1);
 }
 
 static void test_otrl_instag_forget_all(void)

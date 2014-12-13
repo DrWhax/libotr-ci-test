@@ -48,6 +48,10 @@ static void free_context(ConnContext* context){
 	free(context->username);	
 	free(context->accountname);	
 	free(context->protocol);	
+	if (context->active_fingerprint)
+		free(context->active_fingerprint->trust);	
+	free(context->active_fingerprint);
+	free(context->context_priv);
 	free(context);
 }
 
