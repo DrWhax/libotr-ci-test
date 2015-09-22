@@ -5,3 +5,4 @@ language: c
 compiler:
   - clang
   - gcc
+install: autoreconf -s -i && make 
