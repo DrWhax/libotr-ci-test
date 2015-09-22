@@ -5,4 +5,4 @@ language: c
 compiler:
   - clang
   - gcc
-install: autoreconf -s -i && make 
+script: autoreconf -s -i && ./configure --with-pic --prefix=/usr --mandir=/usr/share/man && make 
