@@ -247,6 +247,7 @@ int otrl_base64_otr_decode(const char *msg, unsigned char **bufp,
     if (!rawmsg && rawlen > 0) {
 	return -1;
     }
+	memset(rawmsg, 0, rawlen);
 
     rawlen = otrl_base64_decode(rawmsg, otrtag, msglen);  /* actual size */
 
