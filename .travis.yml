@@ -5,4 +5,4 @@ language: c
 compiler:
   - clang
   - gcc
-script: autoreconf -s -i && ./configure --with-pic --prefix=/usr --mandir=/usr/share/man && make 
+script: ./bootstrap && autoreconf -s -i && ./configure --with-pic --prefix=/usr --mandir=/usr/share/man && make
